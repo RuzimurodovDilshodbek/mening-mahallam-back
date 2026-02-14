@@ -32,8 +32,9 @@ class NeighborhoodController extends Controller
     public function store(NeighborhoodStoreRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $center = $this->geoService->calculateCenter($validated['boundary_coordinates']);
-        $area = $this->geoService->calculateArea($validated['boundary_coordinates']);
+        $coords = $validated['boundary_coordinates'] ?? null;
+        $center = $coords ? $this->geoService->calculateCenter($coords) : null;
+        $area = $coords ? $this->geoService->calculateArea($coords) : null;
 
         $slugBase = Str::slug($validated['name']);
         $slug = $slugBase;
@@ -49,9 +50,9 @@ class NeighborhoodController extends Controller
             'name' => $validated['name'],
             'slug' => $slug,
             'description' => $validated['description'] ?? null,
-            'boundary_coordinates' => $validated['boundary_coordinates'],
-            'center_lat' => $center['lat'],
-            'center_lng' => $center['lng'],
+            'boundary_coordinates' => $coords,
+            'center_lat' => $center['lat'] ?? null,
+            'center_lng' => $center['lng'] ?? null,
             'area' => $area,
             'region' => $validated['region'] ?? null,
             'district' => $validated['district'] ?? null,
