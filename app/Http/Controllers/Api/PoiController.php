@@ -9,6 +9,7 @@ use App\Models\PoiType;
 use App\Models\PointOfInterest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class PoiController extends Controller
@@ -130,26 +131,39 @@ class PoiController extends Controller
             'is_primary' => 'nullable|boolean',
         ]);
 
-        $path = $request->file('image')->store('pois/' . $poi->id, 'public');
-        $isPrimary = $request->boolean('is_primary', false);
+        try {
+            $path = $request->file('image')->store('pois/' . $poi->id, 'public');
+            $isPrimary = $request->boolean('is_primary', false);
 
-        // If setting as primary, unset others
-        if ($isPrimary) {
-            $poi->images()->update(['is_primary' => false]);
+            // If setting as primary, unset others
+            if ($isPrimary) {
+                $poi->images()->update(['is_primary' => false]);
+            }
+
+            // If first image, make it primary
+            if ($poi->images()->count() === 0) {
+                $isPrimary = true;
+            }
+
+            $nextSortOrder = ((int) $poi->images()->max('sort_order')) + 1;
+
+            $image = $poi->images()->create([
+                'path' => $path,
+                'is_primary' => $isPrimary,
+                'sort_order' => $nextSortOrder,
+            ]);
+
+            return response()->json($image, 201);
+        } catch (\Throwable $e) {
+            Log::error('POI image upload failed', [
+                'neighborhood_id' => $neighborhood->id,
+                'poi_id' => $poi->id,
+                'user_id' => optional($request->user())->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Image upload failed'], 500);
         }
-
-        // If first image, make it primary
-        if ($poi->images()->count() === 0) {
-            $isPrimary = true;
-        }
-
-        $image = $poi->images()->create([
-            'path' => $path,
-            'is_primary' => $isPrimary,
-            'sort_order' => $poi->images()->max('sort_order') + 1,
-        ]);
-
-        return response()->json($image, 201);
     }
 
     public function deleteImage(Request $request, Neighborhood $neighborhood, PointOfInterest $poi, PoiImage $image): JsonResponse
